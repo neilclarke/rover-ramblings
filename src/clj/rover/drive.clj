@@ -18,22 +18,23 @@
                       start)]
       (nth directions new-heading)))
 
+(defn advance-fn
+  "How to alter coordinates when advancing in a certain direction"
+  [heading]
+  ({ :N (fn [[x y]] [x (inc y)])
+     :E (fn [[x y]] [(inc x) y])
+     :S (fn [[x y]] [x (dec y)])
+     :W (fn [[x y]] [(dec x) y])} heading))
+
 (defn advance
   "Advances the rover in the grid, based on its current orientation"
   [heading position]
-  (let [[x y] position]
-    (case heading
-      :N [x (inc y)]
-      :E [(inc x) y]
-      :S [x (dec y)]
-      :W [(dec x) y]
-      position)))
+  ((advance-fn heading) position))
 
 (defn drive
   "Advance or rotate, ignoring commands to enter lost zones"
   [position heading command lost-zones]
   (cond
-
     (= command :F)
     (let [new-pos (advance heading position)]
       (if (contains? lost-zones new-pos) [position heading] [new-pos heading]))
