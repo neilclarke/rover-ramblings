@@ -9,6 +9,7 @@
   :source-paths ["src/clj"]
 
  :profiles {:dev {:source-paths ["dev"]
+                  :aot :all
                   :main rover.core}
-            :uberjar {:aot [rover.core]
+            :uberjar {:aot :all
                       :main rover.core}})

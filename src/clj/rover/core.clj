@@ -1,20 +1,23 @@
 (ns rover.core
-  [:require [clojure.java.io :as io]
-   [rover.drive :as drive]])
+  (:require [clojure.java.io :as io]
+            [rover.drive :as drive])
+  (:gen-class))
 
 (defn parse-grid
-  "Builds a structure that holds the X/Y bounds of the grid"
+  "Builds a structure that holds the X/Y bounds of the grid (max grid size 50x50, positive numbers)"
   [grid]
-  (->> (clojure.string/split grid #" ")
-       (map #(Integer/parseInt %))
-       (into [])))
+  (let [parsed-grid (->> (clojure.string/split grid #" ")
+                         (map #(Integer/parseInt %))
+                         (into []))
+        [gx gy] parsed-grid]
+    [(max 0 (min 50 gx)) (max 0 (min 50 gy))]))
 
 (defn parse-instructions
-  "Create a sequence of instruction keywords from a string"
+  "Create a sequence of instruction letters from a string"
   [instr-str]
   (into []
-        (comp (map #(String/valueOf %)) (map keyword))
-        (seq instr-str)))
+        (map #(String/valueOf %))
+        (take 100 (seq instr-str))))
 
 (defn parse-rover-start
   "Builds a structure that holds the starting grid coordinates and heading for the rover"
@@ -24,50 +27,52 @@
                          (butlast)
                          (map #(Integer/parseInt %))
                          (into []))
-        rover-orient (->> rover-start-seq
-                          (last)
-                          (keyword))]
-    [rover-start rover-orient]))
-
-(defn within-bounds
-  "Checks if the new position of the rover (px/py) is within the bounds of the grid (gx/gy)"
-  [[gx gy] [px py]]
-  (and
-   (<= 0 px)
-   (<= 0 py)
-   (<= px gx)
-   (<= py gy)))
+        rover-heading (->> rover-start-seq
+                           (last))]
+    [rover-start rover-heading]))
 
 (defn run-rover
   "And awaaaaay we go!"
   [grid-size lost-zones [rover-start commands]]
-  (let [rover (atom rover-start)]
-    (for [command commands]
-      (let [last-known-pos (first @rover)
-            new-state (drive/drive last-known-pos (second @rover) command @lost-zones)]
-        (if (not (within-bounds grid-size (first new-state)))
-          (swap! lost-zones conj (first @rover)) ;should break here
-          (reset! rover new-state))))))
+  (loop [commands commands
+         rover-pos rover-start]
+    (if-let [command (first commands)]
+      (let [[current-pos current-heading] rover-pos
+            new-state (drive/drive current-pos current-heading command @lost-zones)]
+        (if (not (drive/within-bounds grid-size (first new-state)))
+          (do
+            (swap! lost-zones conj rover-pos)
+            (conj rover-pos "LOST"))
+          (do
+            (recur (rest commands) new-state))))
+      rover-pos)))
+
+(defn run-rover-file
+  [filename]
+  (let [lost-zones (atom #{})]
+    (with-open [reader (io/reader filename)]
+      (let [grid-size (parse-grid (.readLine reader))
+            rover-setups (->> (line-seq reader)
+                              (reduce conj [])
+                              (remove empty?)
+                              (partition 2)
+                              (map (fn [[rover-start rover-instrs]]
+                                     [(parse-rover-start rover-start) (parse-instructions rover-instrs)])))
+            rover-ramblings (pmap #(run-rover grid-size lost-zones %) rover-setups)]
+        (->> rover-ramblings
+             (map flatten)
+             (map #(interpose " " %))
+             (map #(apply str %))
+             (interpose "\n")
+             (apply str))))))
 
 (defn -main
-  "Main"
+  "Main Method."
   ([]
    (do
-     (println "running with default input file \"resources/input.txt\"")
-     (-main "resources/input.txt")))
-
+     (-main "")))
   ([filename]
-   (let [lost-zones (atom #{})]
-     (do
-       (println "running for file:" filename)
-       (let [lost-zones (atom #{})
-             filename "resources/input.txt"]
-         (with-open [reader (io/reader filename)]
-           (let [grid-size (parse-grid (.readLine reader))
-                 rover-setups (->> (line-seq reader)
-                                   (reduce conj [])
-                                   (remove empty?)
-                                   (partition 2)
-                                   (map (fn [[rover-start rover-instrs]]
-                                          [(parse-rover-start rover-start) (parse-instructions rover-instrs)])))]
-             (pmap #(run-rover grid-size lost-zones %) rover-setups))))))))
+   (if (.exists (io/file filename))
+       (println (run-rover-file filename))
+       (println "please specify a valid file path..."))
+   (System/exit 0)))
