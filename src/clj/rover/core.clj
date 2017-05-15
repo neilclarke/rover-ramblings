@@ -48,6 +48,7 @@
       rover-pos)))
 
 (defn run-rover-file
+  "Run the rover structure from the filename specified at this string path"
   [filename]
   (let [lost-zones (atom #{})]
     (with-open [reader (io/reader filename)]
