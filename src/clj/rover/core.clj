@@ -29,6 +29,15 @@
                           (keyword))]
     [rover-start rover-orient]))
 
+(defn within-bounds
+  "Checks if the new position of the rover (px/py) is within the bounds of the grid (gx/gy)"
+  [[gx gy] [px py]]
+  (and
+   (<= 0 px)
+   (<= 0 py)
+   (<= px gx)
+   (<= py gy)))
+
 (defn run-rover
   "And awaaaaay we go!"
   [grid-size lost-zones [rover-start commands]]
@@ -36,8 +45,8 @@
     (for [command commands]
       (let [last-known-pos (first @rover)
             new-state (drive/drive last-known-pos (second @rover) command @lost-zones)]
-        (if (= new-state :LOST)
-          (swap! lost-zones conj (first @rover))
+        (if (not (within-bounds grid-size (first new-state)))
+          (swap! lost-zones conj (first @rover)) ;should break here
           (reset! rover new-state))))))
 
 (defn -main
